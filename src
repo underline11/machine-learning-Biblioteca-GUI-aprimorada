@@ -1,0 +1,220 @@
+import tkinter as tk
+from tkinter import messagebox
+import sqlite3
+
+# Conectar ao banco de dados (ou criar se não existir)
+conn = sqlite3.connect('biblioteca.db')
+cursor = conn.cursor()
+
+# Criar as tabelas, se não existirem
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS autores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        nacionalidade TEXT
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS livros (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT NOT NULL,
+        ano_publicacao INTEGER
+    )
+''')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS emprestimos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        livro_id INTEGER,
+        data_emprestimo TEXT,
+        data_devolucao TEXT,
+        nome_usuario TEXT,
+        FOREIGN KEY (livro_id) REFERENCES livros (id)
+    )
+''')
+
+# Funções
+def login():
+    if entry_password.get() == '12345':  # Senha correta
+        login_window.destroy()
+        create_main_window()
+    else:
+        messagebox.showerror("Erro", "Senha incorreta!")
+
+def create_main_window():
+    global root, autores_list, livros_list, livros_antigos_list, emprestimos_list
+    root = tk.Tk()
+    root.title('Sistema de Biblioteca')
+
+    # Frame para adicionar autores
+    frame_autor = tk.LabelFrame(root, text='Adicionar Autor')
+    frame_autor.grid(row=0, column=0, padx=10, pady=10)
+
+    tk.Label(frame_autor, text='Nome do Autor:').grid(row=0, column=0)
+    entry_autor = tk.Entry(frame_autor)
+    entry_autor.grid(row=0, column=1)
+
+    tk.Label(frame_autor, text='Nacionalidade:').grid(row=1, column=0)
+    entry_nacionalidade = tk.Entry(frame_autor)
+    entry_nacionalidade.grid(row=1, column=1)
+
+    tk.Button(frame_autor, text='Adicionar Autor', command=lambda: add_autor(entry_autor.get(), entry_nacionalidade.get())).grid(row=0, column=2)
+    tk.Button(frame_autor, text='Visualizar Autores', command=view_autores).grid(row=0, column=3)
+    tk.Button(frame_autor, text='Classificar Autores', command=sort_autores).grid(row=0, column=4)
+
+    # Frame para adicionar livros
+    frame_livro = tk.LabelFrame(root, text='Adicionar Livro')
+    frame_livro.grid(row=1, column=0, padx=10, pady=10)
+
+    tk.Label(frame_livro, text='Título do Livro:').grid(row=0, column=0)
+    entry_livro = tk.Entry(frame_livro)
+    entry_livro.grid(row=0, column=1)
+
+    tk.Label(frame_livro, text='Ano de Publicação:').grid(row=1, column=0)
+    entry_ano_pub = tk.Entry(frame_livro)
+    entry_ano_pub.grid(row=1, column=1)
+
+    tk.Button(frame_livro, text='Adicionar Livro', command=lambda: add_livro(entry_livro.get(), entry_ano_pub.get())).grid(row=2, column=1)
+    tk.Button(frame_livro, text='Visualizar Livros', command=view_livros).grid(row=2, column=2)
+    tk.Button(frame_livro, text='Classificar Livros', command=sort_livros).grid(row=2, column=3)
+
+    # Frame para adicionar empréstimos
+    frame_emprestimo = tk.LabelFrame(root, text='Adicionar Empréstimo')
+    frame_emprestimo.grid(row=2, column=0, padx=10, pady=10)
+
+    tk.Label(frame_emprestimo, text='Livro:').grid(row=0, column=0)
+    entry_livro_emp = tk.Entry(frame_emprestimo)
+    entry_livro_emp.grid(row=0, column=1)
+
+    tk.Label(frame_emprestimo, text='Data Empréstimo:').grid(row=1, column=0)
+    entry_data_emp = tk.Entry(frame_emprestimo)
+    entry_data_emp.grid(row=1, column=1)
+
+    tk.Label(frame_emprestimo, text='Data Devolução:').grid(row=2, column=0)
+    entry_data_dev = tk.Entry(frame_emprestimo)
+    entry_data_dev.grid(row=2, column=1)
+
+    tk.Label(frame_emprestimo, text='Nome do Usuário:').grid(row=3, column=0)
+    entry_nome_usuario = tk.Entry(frame_emprestimo)
+    entry_nome_usuario.grid(row=3, column=1)
+
+    tk.Button(frame_emprestimo, text='Adicionar Empréstimo', command=lambda: add_emprestimo(entry_livro_emp.get(), entry_data_emp.get(), entry_data_dev.get(), entry_nome_usuario.get())).grid(row=4, column=1)
+    tk.Button(frame_emprestimo, text='Visualizar Empréstimos', command=view_emprestimos).grid(row=4, column=2)
+    tk.Button(frame_emprestimo, text='Classificar Empréstimos', command=sort_emprestimos).grid(row=4, column=3)
+
+    # Frame para visualizar livros antigos
+    frame_livros_antigos = tk.LabelFrame(root, text='Livros Antigos')
+    frame_livros_antigos.grid(row=1, column=1, padx=10, pady=10)  # Mudei para a linha 1
+
+    tk.Label(frame_livros_antigos, text='Ano Limite:').grid(row=0, column=0)
+    entry_ano_limite = tk.Entry(frame_livros_antigos)
+    entry_ano_limite.grid(row=0, column=1)
+
+    tk.Button(frame_livros_antigos, text='Visualizar Livros Antigos', command=view_livros_antigos).grid(row=1, column=0)
+    tk.Button(frame_livros_antigos, text='Classificar Livros Antigos', command=sort_livros_antigos).grid(row=1, column=1)
+
+    # Frame para visualizar
+    frame_visualizar = tk.LabelFrame(root, text='Visualizar')
+    frame_visualizar.grid(row=0, column=2, rowspan=4, padx=10, pady=10)
+
+    # Lista para mostrar os autores
+    autores_list = tk.Listbox(frame_visualizar, height=10, width=50)
+    autores_list.grid(row=0, column=0)
+
+    tk.Button(frame_visualizar, text='Limpar Autores', command=lambda: clear_list(autores_list)).grid(row=1, column=0)
+
+    # Lista para mostrar os livros
+    livros_list = tk.Listbox(frame_visualizar, height=10, width=50)
+    livros_list.grid(row=2, column=0)
+
+    tk.Button(frame_visualizar, text='Limpar Livros', command=lambda: clear_list(livros_list)).grid(row=3, column=0)
+
+    # Lista para mostrar os livros antigos
+    livros_antigos_list = tk.Listbox(frame_visualizar, height=10, width=50)
+    livros_antigos_list.grid(row=4, column=0)
+
+    tk.Button(frame_visualizar, text='Limpar Livros Antigos', command=lambda: clear_list(livros_antigos_list)).grid(row=5, column=0)
+
+    # Lista para mostrar os empréstimos
+    emprestimos_list = tk.Listbox(frame_visualizar, height=10, width=50)
+    emprestimos_list.grid(row=6, column=0)
+
+    tk.Button(frame_visualizar, text='Limpar Empréstimos', command=lambda: clear_list(emprestimos_list)).grid(row=7, column=0)
+
+    # Inicia a aplicação
+    root.mainloop()
+
+# Funções de Adicionar, Visualizar e Classificar
+def add_autor(nome, nacionalidade):
+    if not nome or not nacionalidade:
+        messagebox.showwarning("Aviso", "Preencha todos os campos para adicionar um autor!")
+    else:
+        cursor.execute('INSERT INTO autores (nome, nacionalidade) VALUES (?, ?)', (nome, nacionalidade))
+        conn.commit()
+        print(f'Autor Adicionado: {nome}, Nacionalidade: {nacionalidade}')
+
+def view_autores():
+    autores_list.delete(0, tk.END)
+    cursor.execute('SELECT * FROM autores')
+    for autor in cursor.fetchall():
+        autores_list.insert(tk.END, f'{autor[1]} ({autor[2]})')
+
+def sort_autores():
+    print('Classificando autores...')
+
+def add_livro(titulo, ano_pub):
+    if not titulo or not ano_pub:
+        messagebox.showwarning("Aviso", "Preencha todos os campos para adicionar um livro!")
+    else:
+        cursor.execute('INSERT INTO livros (titulo, ano_publicacao) VALUES (?, ?)', (titulo, ano_pub))
+        conn.commit()
+        print(f'Livro Adicionado: {titulo}, Ano: {ano_pub}')
+
+def view_livros():
+    livros_list.delete(0, tk.END)
+    cursor.execute('SELECT * FROM livros')
+    for livro in cursor.fetchall():
+        livros_list.insert(tk.END, f'{livro[1]} - {livro[2]}')
+
+def sort_livros():
+    print('Classificando livros...')
+
+def add_emprestimo(livro, data_emp, data_dev, usuario):
+    if not livro or not data_emp or not data_dev or not usuario:
+        messagebox.showwarning("Aviso", "Preencha todos os campos para adicionar um empréstimo!")
+    else:
+        cursor.execute('INSERT INTO emprestimos (livro_id, data_emprestimo, data_devolucao, nome_usuario) VALUES (?, ?, ?, ?)', (livro, data_emp, data_dev, usuario))
+        conn.commit()
+        print(f'Empréstimo Adicionado: Livro: {livro}, Usuário: {usuario}')
+
+def view_emprestimos():
+    emprestimos_list.delete(0, tk.END)
+    cursor.execute('SELECT * FROM emprestimos')
+    for emp in cursor.fetchall():
+        emprestimos_list.insert(tk.END, f'{emp[1]} - {emp[3]}')
+
+def sort_emprestimos():
+    print('Classificando empréstimos...')
+
+def view_livros_antigos():
+    print('Visualizando livros antigos...')
+
+def sort_livros_antigos():
+    print('Classificando livros antigos...')
+
+# Limpar as listas
+def clear_list(lista):
+    lista.delete(0, tk.END)
+
+# Janela de login
+login_window = tk.Tk()
+login_window.title('Login')
+
+tk.Label(login_window, text="Senha:").pack()
+entry_password = tk.Entry(login_window, show='*')
+entry_password.pack()
+
+tk.Button(login_window, text="Entrar", command=login).pack()
+
+login_window.mainloop()
+
+conn.close()
